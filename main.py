@@ -1,41 +1,67 @@
+#update action defenitins
+#put in random information
+#continue button
+
+
 import pygame
 from pygame.locals import *
 from functools import partial
 from UIClasses import *
+from DataClasses import *
+pygame.init()
 
-action_queue = []
-enemy_action_queue = [3, 0, 0, 3, 0, 0, 0]
+# Initialise screen
+screen = pygame.display.set_mode((1600, 900))
+pygame.display.set_caption('PatternMaster2022')
+
 playeractions = []
 enemyactions = []
 buttonlist = []
 spritelist = []
-action_names = ["Quick Attack", "Normal Attack", "Heavy Attack", "Dodge", "Block", "Parry", "Heal"]
+action_names = ["Quick Attack", "Normal Attack", "Heavy Attack", "Dodge", "Block", "Parry", "Flub"]
 revealed_attacks = []
 enemy = None
 player_reveals = 2
 prevent_interaction = False
 start_results_display = 0
 action_definitions = []
+player = character(10)
 
-
-colour_images = ["Green.png", "Blue.png", "Red.png", "Green.png", "Blue.png", "Red.png"]
-shape_images = ["Circle.png", "Circle.png", "Circle.png", "Triangle.png", "Triangle.png", "Triangle.png"]
-icons = ["Quick Attack.png", "Normal Attack.png", "Heavy Attack.png", "Dodge.png", "Parry.png", "Block.png"]
+colour_images = ["Green.png", "Blue.png", "Red.png", "Green.png", "Blue.png", "Red.png", "Flub.png"]
+shape_images = ["Circle.png", "Circle.png", "Circle.png", "Triangle.png", "Triangle.png", "Triangle.png", "Flub.png"]
+icons = ["Quick Attack.png", "Normal Attack.png", "Heavy Attack.png", "Dodge.png", "Parry.png", "Block.png", "Flub.png"]
 result_displays = []
 
 
-class character():
-    def __init__(self, max_hp):
-        self.action_queue = []
-        self.hp = max_hp
-        self.max_hp = max_hp
+playerhp = textdisplay((180, 800), "Player HP: " + str(player.hp))
+enemyhp = textdisplay((1400, 800), "Enemy HP: " + "")
+enemyname = textdisplay((1355, 765), "Gregore")
+playerimage = imagedisplay((180, 680), (200, 200), "Warrior.png")
+enemyimage = imagedisplay((1400, 680), (200, 200), "GoblinBG.png")
+
+quickAttack = action(action_definitions)  # action("Quick Attack", "Green.png", "Circle.png", action_definitions)
+skillfulAttack = action(action_definitions)
+heavyAttack = action(action_definitions)
+dodge = action(action_definitions)
+parry = action(action_definitions)
+block = action(action_definitions)
+flub = action(action_definitions)
+
+quickAttack.damage_dict = {heavyAttack:2, quickAttack:1, skillfulAttack: 1, dodge: 2, flub: 2}
+heavyAttack.damage_dict = {heavyAttack:1, quickAttack:1, skillfulAttack: 2, block: 2, flub: 2}
+skillfulAttack.damage_dict = {heavyAttack:1, quickAttack:2, skillfulAttack: 1, parry: 2, flub: 2}
+dodge.flub_list.append(heavyAttack)
+parry.flub_list.append(quickAttack)
+block.flub_list.append(skillfulAttack)
+
+
 
 
 
 def update_player_action_display():
     for i in range(len(playeractions)):
-        if i < len(action_queue):
-            playeractions[i].updateimages(colour_images[action_queue[i]], shape_images[action_queue[i]], icons[action_queue[i]])
+        if i < len(player.action_queue):
+            playeractions[i].updateimages(colour_images[player.action_queue[i]], shape_images[player.action_queue[i]], icons[player.action_queue[i]])
         else:
             playeractions[i].updateimages("Grey.png", "Blank.png", "Blank.png")
 
@@ -59,19 +85,21 @@ def reveal_enemy_attack(index):
 
 def cancel_action(action_index):
     print(action_index)
-    if action_index < len(action_queue):
-        del action_queue[action_index]
+    if action_index < len(player.action_queue):
+        del player.action_queue[action_index]
         update_player_action_display()
 
 
 def add_action_to_queue(chosen_action):
-    action_queue.append(chosen_action)
-    update_player_action_display()
-
+    if len(player.action_queue) < len(enemy.action_queue):
+        player.action_queue.append(chosen_action)
+        update_player_action_display()
+    else:
+        return
 
 def setup_enemy_fight():
     global enemy
-    enemy = character(3)
+    enemy = character(10)
     setup_round()
 
 
@@ -79,37 +107,63 @@ def setup_round():
     global enemy
     global revealed_attacks
     global player_reveals
+    player.action_queue = []
+    enemyhp.updatetext("Enemy HP: " + str(enemy.hp))
+    playerhp.updatetext("Player HP: " + str(player.hp))
     revealed_attacks = [True, False, False, False, False, False, False]
     enemy.action_queue = [3, 0, 0, 3, 0, 0, 0]
     player_reveals = 2
+    update_player_action_display()
     update_enemy_action_display()
 
 
 def endturn():
     global prevent_interaction
     global start_results_display
+    if len(player.action_queue) < len(enemy.action_queue):
+        print("You still have more moves!")
+        return
     print("endturn")
     start_results_display = pygame.time.get_ticks()
     prevent_interaction = True
-    for i in range(len(action_queue)):
-        #figure out result
-        pass
 
+    for i in range(len(player.action_queue)):
+        used_action = action_definitions[player.action_queue[i]]
+        enemy_action = action_definitions[enemy.action_queue[i]]
+        result = 0
 
-class Attack:
-    def __init__(self, action_list):
-        action_list.append(self)
-        self.damage_dict = {}
+        if enemy_action in used_action.flub_list:
+            result += 1
+            if i < len(player.action_queue) -1:
+                enemy.action_queue[i + 1] = action_definitions.index(flub)
+            else:
+                enemy.hp -= 1
+        if used_action in enemy_action.flub_list:
+            result -= 1
+            if i < len(player.action_queue) -1:
+                player.action_queue[i + 1] = action_definitions.index(flub)
+            else:
+                player.hp -= 1
+
+        if enemy_action in used_action.damage_dict:
+            enemy.hp -= used_action.damage_dict[enemy_action]
+            result += used_action.damage_dict[enemy_action]
+        if used_action in enemy_action.damage_dict:
+            player.hp -= enemy_action.damage_dict[enemy_action]
+            result -= enemy_action.damage_dict[used_action]
+        if result ==0:
+            result_displays[i].updateimage("Neutral.png")
+        elif result < 0:
+            result_displays[i].updateimage("Loss.png")
+        else:
+            result_displays[i].updateimage("Win.png")
 
 
 
 def main():
     global prevent_interaction
     global start_results_display
-    # Initialise screen
-    pygame.init()
-    screen = pygame.display.set_mode((1600, 900))
-    pygame.display.set_caption('PatternMaster2022')
+
 
     # Fill background
     background = pygame.Surface(screen.get_size())
@@ -135,13 +189,6 @@ def main():
         playerchoices.append(actiondisplay((0, 0), (100, 100)))
 
 
-
-
-    playerhp = textdisplay((180, 800), "Player HP: " + "100")
-    enemyhp = textdisplay((1400, 800), "Enemy HP: " + "100")
-    enemyname = textdisplay((1355, 765), "Gregore")
-    playerimage = imagedisplay((180, 680), (200, 200), "Warrior.png")
-    enemyimage = imagedisplay((1400, 680), (200, 200), "GoblinBG.png")
 
     centeraround(playeractions, (screen.get_size()[0]/2, 600), 20)
     centeraround(playerchoices, (screen.get_size()[0]/2, 800), 20)
@@ -215,7 +262,7 @@ def main():
 
         if prevent_interaction:
             time_passed = pygame.time.get_ticks() - start_results_display
-            if time_passed > 2000:
+            if time_passed > 500 * (len(enemy.action_queue) + 1):
                 for i in result_displays:
                     try:
                         spritelist.remove(i)
@@ -223,12 +270,21 @@ def main():
                         pass
                 prevent_interaction = False
                 result_display_shown_count = 0
-                setup_round()
+                if player.hp <=0:
+                    print("You lost the battle")
+                    #END GAME
+                elif enemy.hp <=0:
+                    print("You have won the Game!")
+                    #NEXT FIGHT
+                else:
+                    setup_round()
             else:
                 for i in range(len(result_displays)):
-                    if i >= result_display_shown_count and time_passed > i * 250:
+                    if i >= result_display_shown_count and time_passed > i * 500:
                         result_display_shown_count += 1
                         spritelist.append(result_displays[i])
+                        playeractions[i].updateimages(colour_images[player.action_queue[i]], shape_images[player.action_queue[i]], icons[player.action_queue[i]])
+                        enemyactions[i].updateimages(colour_images[enemy.action_queue[i]], shape_images[enemy.action_queue[i]], icons[enemy.action_queue[i]])
 
         for sprite in spritelist:
             background.blit(sprite.surf, sprite.rect)
